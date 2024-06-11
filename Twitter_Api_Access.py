@@ -1,34 +1,73 @@
 import tweepy
 import time
+import logging
 
-consumer_key = 'fg6RY23iaTztDOuUUxSy5REdM'
-consumer_secret = 'eB4A94FKBoITvcbtD7a1twvMRR1QcXOLuLqPCG67ccjoCvVBf9'
-access_token = '1504421699206459392-4tMtQJEw5P04xfYFK1Pt1RnYxDZaFB'
-access_token_secret = 'fxHJUaKnVbD0B3gRaTziM5OWLEfj7QRSjyxULnf5Hqsl1'
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
-auth.set_access_token(access_token, access_token_secret)
-api = tweepy.API(auth)
+# Twitter API credentials
+consumer_key = '#'
+consumer_secret = '#'
+access_token = '#'
+access_token_secret = '#'
 
-with open("movies.txt") as f:
-    messages = f.readlines()
+# Authenticate with Twitter
+try:
+    auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
+    auth.set_access_token(access_token, access_token_secret)
+    api = tweepy.API(auth)
+    api.verify_credentials()
+    logging.info("Authentication successful")
+except tweepy.TweepError as e:
+    logging.error("Error during authentication", exc_info=True)
+    exit(1)
 
-# Keep track of the current message index
+# Load messages from file
+try:
+    with open("movies.txt") as f:
+        messages = f.readlines()
+    messages = [message.strip() for message in messages if message.strip()]
+    logging.info(f"Loaded {len(messages)} messages")
+except Exception as e:
+    logging.error("Error reading messages from file", exc_info=True)
+    exit(1)
+
+# Configurable sleep time (in seconds)
+sleep_time = 3600
+
+# Initialize message index
 message_index = 0
 
-# Post a message from the file to Twitter every hour
+# Avoid posting duplicate messages if script restarts
+posted_messages = set()
+
 while True:
-    # Get the next message from the file
-    message = messages[message_index]
+    try:
+        # Check if all messages have been posted
+        if message_index >= len(messages):
+            logging.info("All messages have been posted. Exiting.")
+            break
 
-    # Post the message to Twitter
-    api.update_status(message)
+        # Get the next message from the file
+        message = messages[message_index]
 
-    # Increment the message index, and reset it to 0 if we've reached the end of the file
-    message_index += 1
-    if message_index >= len(messages):
-        message_index = 0
+        # Post the message to Twitter if it has not been posted before
+        if message not in posted_messages:
+            api.update_status(message)
+            logging.info(f"Posted message: {message}")
+            posted_messages.add(message)
+        else:
+            logging.info(f"Skipping duplicate message: {message}")
 
-    # Wait for an hour before posting the next message
-    time.sleep(3600)
+        # Increment the message index
+        message_index += 1
 
+        # Wait for the specified time before posting the next message
+        time.sleep(sleep_time)
+
+    except tweepy.TweepError as e:
+        logging.error("Error posting message to Twitter", exc_info=True)
+        time.sleep(sleep_time)  # Wait before retrying in case of an error
+    except Exception as e:
+        logging.error("An unexpected error occurred", exc_info=True)
+        break
